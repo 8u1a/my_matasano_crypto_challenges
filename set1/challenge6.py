@@ -39,18 +39,14 @@ def hamming_distance_two_hexstrings(hexstring1, hexstring2):
 
     return distance
 #--------------------------------------------------------------------------
-def multibyte_xor_hexstrings(hexstring1, key):
+def multibyte_xor_hexstrings(bs, key):
 
-    import binascii
-    bytes1=binascii.unhexlify(hexstring1)
-
-    decoded = ""
-    count = 0
-    for byte in bytes1:
-        decoded+=chr(byte ^ ord(key[count % len(key)]))
+    count=0
+    decoded_bytes = []
+    for b in bs:
+        decoded_bytes.append(b^key[count % len(key)])
         count+=1
-
-    return decoded
+    return bytearray(decoded_bytes)
 #--------------------------------------------------------------------------
 
 def fixed_xor_hexstrings(hexstring1, key):
@@ -89,8 +85,21 @@ def solve_block(block_data):
             return i
     return False
 #--------------------------------------------------------------------------
+def transpose_blocks(ciphertext, block_size):
+    transposed_blocks = []
 
+    #iterate through the length of the key
+    for i in range(block_size):
+        b_array = bytearray()
+        count=0
+        for b in ciphertext:
+            if ((count - i) % block_size) == 0:
+                b_array.append(b)
+            count+=1
+        transposed_blocks.append(b_array)
+    return transposed_blocks
 
+#--------------------------------------------------------------------------
 def solve_challenge(b64_crypt):
 
     ciphertext = base64.b64decode(b64_crypt)
@@ -130,33 +139,14 @@ def solve_challenge(b64_crypt):
     #for each key size, attempt to solve the multibyte key
     for k_candidate in keysize_candidates:
         standard_blocks = [ciphertext[x:x+k_candidate] for x in range(0, len(ciphertext), k_candidate)]
-        transposed_blocks = []
 
-        #init the transposed blocks
-        for i in range(k_candidate):
-            transposed_blocks.append(b"")
+        transposed_blocks = transpose_blocks(ciphertext, k_candidate)
 
-        for current_std_block in standard_blocks:
-            for i in range(len(current_std_block)):
-                transposed_blocks[i] = b"".join([transposed_blocks[i], bytes([current_std_block[i]])])
+        #left off here...the below just tests the transposed blocks, which seems to work...
+        print(binascii.hexlify(ciphertext))
+        for t in transposed_blocks:
+            print(binascii.hexlify(t))
 
-        #guess xor bytes
-        guessed_xor_keys = []
-        for b in transposed_blocks:
-            guessed_xor_keys.append(solve_block(binascii.hexlify(b)))
-
-        #create key
-        key = b""
-        for x in guessed_xor_keys:
-            key = b"".join([key, bytes([x])])
-
-        #print decrypted blocks
-        count = 0
-        for block in standard_blocks:
-            print(block)
-            if count < len(standard_blocks)-1:
-                print(multibyte_xor_hexstrings(binascii.hexlify(block), key))
-                count+=1
     return True
 #--------------------------------------------------------------------------
 

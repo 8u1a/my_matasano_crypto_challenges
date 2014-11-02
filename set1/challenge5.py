@@ -1,21 +1,21 @@
 __author__ = 'christianbuia'
 import binascii
 
-def multibyte_xor_hexstrings(hexstring1, key):
+def multibyte_xor_hexstrings(bs, key):
 
-    import binascii
-    bytes1=binascii.unhexlify(hexstring1)
-
-    decoded = ""
-    count = 0
-    for byte in bytes1:
-        decoded+=chr(byte ^ ord(key[count % len(key)]))
+    count=0
+    decoded_bytes = []
+    for b in bs:
+        decoded_bytes.append(b^key[count % len(key)])
         count+=1
-
-    return decoded
+    return bytearray(decoded_bytes)
 
 text1 = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
 
 key = "ICE"
-xorred = multibyte_xor_hexstrings(binascii.hexlify(bytes(text1, "ascii")), key)
-print(binascii.hexlify(bytes(xorred, "ascii")), key)
+key = bytes(key, "ascii")
+xorred = multibyte_xor_hexstrings(bytes(text1, "ascii"), key)
+
+print(binascii.hexlify(xorred))
+
+#0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f
