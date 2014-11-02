@@ -61,27 +61,45 @@ def fixed_xor_hexstrings(hexstring1, key):
 #--------------------------------------------------------------------------
 
 
-def evaluate_as_english(message):
+def evaluate_as_english(message, ratio_common_printables, ratio_spaces_to_letters):
 
-    #first stage, we get rid of anything that has nonprintables
-    #for s in message:
-    #    if ord(s) < 32 or ord(s) > 126:
-    #        return False
+    #count the number of common printables vs non-common printbables
+    count_cp = 0
+    count_ncp = 0
+    count_letters = 0
+    count_spaces = 0
+    for m in message:
+        letters=False
+        numbers=False
+        punct = False
+        m = ord(m)
+        if m > 64 and m < 123:
+            letters = True
+            count_letters+=1
+        if m > 47 and m < 58:
+            numbers=True
+        if m==32 or m==33 or m==34 or m==40 or m==41 or m==46 or m==63:
+            punct = True
+            if m==32:
+                count_spaces+=1
 
-    #second stage, we get rid of anything that doesn't seem to have
-    #space-separated words of reasonable length.
-    split_tokens = message.split(" ")
-    if len(split_tokens) < len(message) / 10:
+        if letters or numbers or punct:
+            count_cp+=1
+        else:
+            count_ncp+=1
+
+    if count_cp / (count_cp + count_ncp) > ratio_common_printables:
+        if count_spaces / (count_letters + count_spaces) > ratio_spaces_to_letters:
+            return True
+    else:
         return False
-
-    return True
 #--------------------------------------------------------------------------
 
 
 def solve_block(block_data):
     for i in range(256):
         message = fixed_xor_hexstrings(block_data, i)
-        if evaluate_as_english(message):
+        if evaluate_as_english(message, .8, .1):
             return i
     return False
 #--------------------------------------------------------------------------
@@ -142,10 +160,13 @@ def solve_challenge(b64_crypt):
 
         transposed_blocks = transpose_blocks(ciphertext, k_candidate)
 
-        #left off here...the below just tests the transposed blocks, which seems to work...
-        print(binascii.hexlify(ciphertext))
-        for t in transposed_blocks:
-            print(binascii.hexlify(t))
+        xor_bytes = [solve_block(binascii.hexlify(tblock)) for tblock in transposed_blocks]
+
+        key = bytearray(xor_bytes)
+
+        plaintext = multibyte_xor_hexstrings(ciphertext, key)
+        print(plaintext.decode("utf-8"))
+
 
     return True
 #--------------------------------------------------------------------------
