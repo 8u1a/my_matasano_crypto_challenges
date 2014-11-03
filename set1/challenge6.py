@@ -39,7 +39,7 @@ def hamming_distance_two_hexstrings(hexstring1, hexstring2):
 
     return distance
 #--------------------------------------------------------------------------
-def multibyte_xor_hexstrings(bs, key):
+def multibyte_xor(bs, key):
 
     count=0
     decoded_bytes = []
@@ -164,7 +164,7 @@ def solve_challenge(b64_crypt):
 
         key = bytearray(xor_bytes)
 
-        plaintext = multibyte_xor_hexstrings(ciphertext, key)
+        plaintext = multibyte_xor(ciphertext, key)
         print(plaintext.decode("utf-8"))
 
 
