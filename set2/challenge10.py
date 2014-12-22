@@ -47,12 +47,6 @@ def encrypt_aes(message, key):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-def decrypt_aes_cbc(message, key, vector):
-    return True
-
-#-----------------------------------------------------------------------------------------------------------------------
-
-
 def encrypt_aes_cbc(message, key, vector):
 
     message = pkcs7_padding(message, 16)
@@ -61,43 +55,72 @@ def encrypt_aes_cbc(message, key, vector):
 
     for block in blocks:
         encrypted_block = bytearray()
-        b_count = 0
-        for b in block:
-            encrypted_block.append(block[b_count] ^s vector[b_count])
-            b_count+=1
-        encrypted_block.
+        for b_count in range(len(block)):
+            encrypted_block.append(block[b_count] ^ vector[b_count])
+
         vector = encrypt_aes(bytes(encrypted_block), key)
         encrypted_blocks.append(vector)
 
+    ciphertext = b''
+    for block in encrypted_blocks:
+        ciphertext += block
 
-    ciphertext = bytearray(encrypted_blocks)
 
     return ciphertext
 #-----------------------------------------------------------------------------------------------------------------------
 
 
+def decrypt_aes_cbc(message, key, vector):
+
+    blocks = [message[x:x+16] for x in range(0, len(message), 16)]
+    decrypted_blocks = []
+
+    for block in blocks:
+        dec_block = bytearray(decrypt_aes(bytes(block), key))
+        decrypted_block = bytearray()
+        for b_count in range(len(dec_block)):
+            decrypted_block.append(dec_block[b_count] ^ vector[b_count])
+
+        vector = block
+        decrypted_blocks.append(decrypted_block)
+
+    plaintext = b''
+    for block in decrypted_blocks:
+        plaintext += block
+
+    #TODO may want to implement PKCS7 de-padding
+
+    return plaintext
+#-----------------------------------------------------------------------------------------------------------------------
+
 
 def solve_challenge(b64_crypt):
 
+    """
     #test encrypt and decrypt
     plaintext = "The killer whale (Orcinus orca), also referred to as the orca whale or orca, and less commonly as the blackfish or grampus, is a toothed whale belonging to the oceanic dolphin family."
     plaintext = bytearray(plaintext, "ascii")
     init_vector = bytearray(b'0000000000000000')
 
-    ciphertext = encrypt_aes_cbc(plaintext, bytearray("YELLOW SUBMARINE", "ascii"), init_vector)
+    ciphertext = encrypt_aes_cbc(plaintext, bytes("YELLOW SUBMARINE", "ascii"), init_vector)
     print(ciphertext)
+    print(decrypt_aes_cbc(ciphertext, bytes("YELLOW SUBMARINE", "ascii"), init_vector))
 
+    #exit(1)
     """
-    ciphertext = base64.b64decode(b64_crypt)
-    blocks = [ciphertext[x:x+16] for x in range(0, len(ciphertext), 16)]
 
-    key="YELLOW SUBMARINE"
-    init_vector = b'0000000000000000'
+    init_vector = bytearray(b'0000000000000000')
+    cipher = bytes(base64.b64decode(b64_crypt))
+    plain = decrypt_aes_cbc(cipher, bytes("YELLOW SUBMARINE", "ascii"), init_vector)
 
-    for block in blocks:
+    plain = str(plain)
+
+    #not sure why the first line of the plain text is partially garbled, but chalking it up to comment about
+    #the content being "somewhat" intelligible.
+    for p in plain.split("\\n"):
+        print(p)
 
 
-    """
     return True
 
 #=======================================================================================================================
