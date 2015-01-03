@@ -2,19 +2,8 @@ __author__ = 'christianbuia'
 
 from Crypto.Cipher import AES
 import base64
-import binascii
+
 #-----------------------------------------------------------------------------------------------------------------------
-
-
-def multibyte_xor(bs, key):
-
-    count=0
-    decoded_bytes = []
-    for b in bs:
-        decoded_bytes.append(b^key[count % len(key)])
-        count+=1
-    return bytearray(decoded_bytes)
-#--------------------------------------------------------------------------
 
 
 def pkcs7_padding(message_bytes, block_size):
@@ -31,7 +20,7 @@ def pkcs7_padding(message_bytes, block_size):
 
 
 #always 16 bytes
-def decrypt_aes(message, key):
+def decrypt_aes128(message, key):
     decobj = AES.new(key, AES.MODE_ECB)
     return decobj.decrypt(message)
 
@@ -39,7 +28,7 @@ def decrypt_aes(message, key):
 
 
 #always 16 bytes
-def encrypt_aes(message, key):
+def encrypt_aes128(message, key):
     decobj = AES.new(key, AES.MODE_ECB)
     return decobj.encrypt(message)
 
@@ -47,7 +36,7 @@ def encrypt_aes(message, key):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-def encrypt_aes_cbc(message, key, vector):
+def encrypt_aes128_cbc(message, key, vector):
 
     message = pkcs7_padding(message, 16)
     blocks = [message[x:x+16] for x in range(0, len(message), 16)]
@@ -58,7 +47,7 @@ def encrypt_aes_cbc(message, key, vector):
         for b_count in range(len(block)):
             encrypted_block.append(block[b_count] ^ vector[b_count])
 
-        vector = encrypt_aes(bytes(encrypted_block), key)
+        vector = encrypt_aes128(bytes(encrypted_block), key)
         encrypted_blocks.append(vector)
 
     ciphertext = b''
@@ -70,13 +59,13 @@ def encrypt_aes_cbc(message, key, vector):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-def decrypt_aes_cbc(message, key, vector):
+def decrypt_aes128_cbc(message, key, vector):
 
     blocks = [message[x:x+16] for x in range(0, len(message), 16)]
     decrypted_blocks = []
 
     for block in blocks:
-        dec_block = bytearray(decrypt_aes(bytes(block), key))
+        dec_block = bytearray(decrypt_aes128(bytes(block), key))
         decrypted_block = bytearray()
         for b_count in range(len(dec_block)):
             decrypted_block.append(dec_block[b_count] ^ vector[b_count])
@@ -111,7 +100,7 @@ def solve_challenge(b64_crypt):
 
     init_vector = bytearray(b'0000000000000000')
     cipher = bytes(base64.b64decode(b64_crypt))
-    plain = decrypt_aes_cbc(cipher, bytes("YELLOW SUBMARINE", "ascii"), init_vector)
+    plain = decrypt_aes128_cbc(cipher, bytes("YELLOW SUBMARINE", "ascii"), init_vector)
 
     plain = str(plain)
 
