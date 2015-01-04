@@ -160,3 +160,4 @@ unknown_string = base64.b64decode(b64_unknown_string)
 plaintext = bytes(unknown_string)
 
 print(crack_ecb(ecb_oracle, plaintext))
+
