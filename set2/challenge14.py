@@ -88,7 +88,7 @@ def detect_plaintext_padding_size(oracle_func, plaintext, block_size):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-def return_sorted_counts_of_lengths(oracle_func, attack_array, plaintext, num_runs=100):
+def return_sorted_counts_of_lengths(oracle_func, attack_array, plaintext, num_runs=200):
     lengths = []
 
     for i in range(num_runs):
@@ -169,22 +169,22 @@ def crack_ecb(oracle_func, plaintext):
     #not sure i need this
     prefix_delta = find_prefix_delta(oracle_func, plaintext, block_size)
 
-    size_of_unaltered_cipher = len(oracle_func(b"", plaintext))
-    number_of_blocks = int(size_of_unaltered_cipher / block_size)
+    sizes_of_base_plaintext = return_sorted_counts_of_lengths(oracle_func, b"", plaintext)
+    top_size_of_base_plaintext = sizes_of_base_plaintext[-1]
+    number_of_blocks_to_decode = int(top_size_of_base_plaintext / block_size)
+
+    analysis_block = number_of_blocks_to_decode + 1
+
+    print("size of base plaintext " + str(sizes_of_base_plaintext))
+    print("number of blocks to decode " + str(number_of_blocks_to_decode))
+    print("analysis block " + str(analysis_block))
 
     #the solved plain text we accumulate and return
     solved_plain_text = b""
 
-    for block_number in range(number_of_blocks):
-
-        #generally we do a full block_size cycle of attack arrays...
-        #unless it's the last block, in which case we subtract padding.
-        if block_number == number_of_blocks - 1:
-            iters = block_size - padding_size
-        else:
-            iters = block_size
-
-        for byte_number in range(iters):
+    exit(1)
+    for block_number in range(number_of_blocks_to_decode):
+        for byte_number in range(block_size):
 
             #generate a homogeneous string of bytes that is of size block_size - 1 - (the number of solved bytes)
             ints = [ord("A") for i in range(block_size-1-byte_number)]
