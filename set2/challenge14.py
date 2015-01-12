@@ -179,29 +179,109 @@ def crack_ecb(oracle_func, plaintext):
     print("number of blocks to decode " + str(number_of_blocks_to_decode))
     print("analysis block " + str(analysis_block))
 
+    #figure out the base attack array to populate the analysis block
+    #--------------------------------------------------------------------------------------------
+    base_attack_array_size = 1
+    base_attack_array = b""
+    while True:
+        ints = [ord("A") for i in range(base_attack_array_size)]
+        base_attack_array = bytes(ints)
+        plaintext_sizes = return_sorted_counts_of_lengths(oracle_func, base_attack_array, plaintext)
+        if plaintext_sizes[-1] > top_size_of_base_plaintext:
+            break
+        base_attack_array_size += 1
+
+    print("base attack array is " + str(base_attack_array))
+    print("size of base attack array is " + str(base_attack_array_size))
+    #--------------------------------------------------------------------------------------------
+
     #the solved plain text we accumulate and return
     solved_plain_text = b""
 
-    exit(1)
     for block_number in range(number_of_blocks_to_decode):
         for byte_number in range(block_size):
 
-            #generate a homogeneous string of bytes that is of size block_size - 1 - (the number of solved bytes)
-            ints = [ord("A") for i in range(block_size-1-byte_number)]
+            #generate the next attack array
+            ints = [ord("A") for i in range(base_attack_array_size + (block_number*block_size) + byte_number)]
             attack_array = bytes(ints)
+            print(attack_array)
+            print(len(attack_array))
 
-            just_short_array = attack_array + solved_plain_text
+            brute_force_dict = {}
+            #the format of each element in this array is:
+            #  [byte_iterator | blocksize worth of most recent bz-1 solved_plain_text | padding if necessary]
 
-            last_byte_dict = {}
-            #ordinal for all ascii (0-127)
+            #build the just short array
+            jsa_solved_plain_text = b""
+            jsa_padding = b""
+            if (len(solved_plain_text)) >= block_size:
+                jsa_solved_plain_text = solved_plain_text[:(block_size-1)-1]
+            else:
+                jsa_solved_plain_text = solved_plain_text
+                padding_lenth = block_size - len(solved_plain_text) - 1
+                for i in range(padding_lenth):
+                    jsa_padding += bytes([padding_lenth])
+            just_short_array = jsa_solved_plain_text + jsa_padding
+
+            just_short_array_bytes_dict = {}
             for i in range(0, 127+1):
-                last_byte_dict[i] = oracle_func(just_short_array, bytes([i]))
+                just_short_array_bytes_dict[i] = bytes([i]) + just_short_array
 
-            cipher = oracle_func(attack_array, plaintext)
+            #now generate the cryptotexts we want to match
+            crypto_text_candidates = []
+            for i in range(150):
+                #if the byte is in the dict, create an entry in the dict of a one-element list
+                candidate_crypt = oracle_func(
+                    attack_array, plaintext)
+                if len(candidate_crypt) >= analysis_block * block_size:
+                    #only extract the analysis block from the candidate
+                    candidate_crypt = candidate_crypt[(analysis_block - 1)*block_size:analysis_block*block_size]
+                    if candidate_crypt not in crypto_text_candidates:
+                        crypto_text_candidates.append(candidate_crypt)
 
-            for i in last_byte_dict.__iter__():
-                if last_byte_dict[i] == cipher[:block_size*(block_number + 1)]:
-                    solved_plain_text += bytes([i])
+            print(just_short_array_bytes_dict)
+            print(crypto_text_candidates)
+
+            #now gen a bunch of ciphertexts, looking at the second block and comparing it to our crypto_text_candidates
+            attack_count = 1
+            solved_byte = None
+
+            while True:
+                if attack_count > block_size*(2+block_number):
+                    print("force breaking out of byte decryption attack loop, and exiting")
+                    exit(1)
+                    break
+                elif solved_byte is not None:
+                    break
+                for element in just_short_array_bytes_dict:
+                    if solved_byte is not None:
+                        break
+                    test_case = just_short_array_bytes_dict[element]
+                    #gen a bunch of ciphers...
+                    ciphers = []
+                    for c in range(100):
+                        intz = \
+                            [ord("A") for lol in range(attack_count)]
+                        ciph = oracle_func(bytes(intz) + test_case, plaintext)
+                        if ciph not in ciphers:
+                            ciphers.append(ciph)
+
+                    for c in ciphers:
+                        #print(c[block_size:block_size*2])
+                        #print(crypto_text_candidates)
+                        if c[block_size + block_number:block_size*2 + block_number] in crypto_text_candidates:
+                            #print("found it")
+                            #print("mystery byte is " + str(test_case[0]))
+                            solved_byte = test_case[0]
+                            break
+
+                attack_count += 1
+
+                #exit(1)
+            #exit(1)
+            solved_plain_text = bytes([solved_byte]) + solved_plain_text
+            print("solved plaintext so far: " + str(solved_plain_text))
+
 
     return solved_plain_text
 #***********************************************************************************************************************
