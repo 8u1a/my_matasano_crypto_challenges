@@ -3,7 +3,7 @@ __author__ = 'christianbuia'
 import random
 from Crypto.Cipher import AES
 import base64
-
+import sys
 
 def pkcs7_padding(message_bytes, block_size):
 
@@ -45,7 +45,9 @@ def detectEBC(cipher, block_size):
         return False
 #-----------------------------------------------------------------------------------------------------------------------
 
-
+#this time with no cheating :) realized during this challenge that the oracle in challenge 12 should also always append
+#the challenge plaintext.  all calls to the oracle will include the original plaintext as the second parameter.
+#change is trivial anyway...
 def ecb_oracle(mytext, plaintext):
 
     #using the same prefix scheme as used in challenge 11 since the spec is pretty broad.
@@ -53,21 +55,6 @@ def ecb_oracle(mytext, plaintext):
 
     cipher = encrypt_aes128(plaintext_prefix + mytext + plaintext, global_key)
     return cipher
-#-----------------------------------------------------------------------------------------------------------------------
-
-
-#detect oracle is ecb by feeding the oracle with homogeneous plaintext with length equal to exactly 4x the block length,
-#then comparing the 2nd & 3rd cipher blocks.  identical cipher blocks indicate the oracle generates ecb ciphers.
-#using blocks 2 & 3 in case of random prefixes (of size less than block size) prepended to the plaintext by the oracle
-def detect_oracle_is_ecb(oracle_func, block_size):
-    ints = [ord("A") for x in range(block_size*4)]
-    cipher = oracle_func(bytes(ints), bytes("", "ascii"))
-
-    if cipher[block_size:block_size*2-1] == cipher[block_size*2:block_size*3-1]:
-        return True
-    else:
-        return False
-
 #-----------------------------------------------------------------------------------------------------------------------
 
 
@@ -191,31 +178,35 @@ def crack_ecb(oracle_func, plaintext):
             break
         base_attack_array_size += 1
 
-    print("base attack array is " + str(base_attack_array))
-    print("size of base attack array is " + str(base_attack_array_size))
+    #print("base attack array is " + str(base_attack_array))
+    #print("size of base attack array is " + str(base_attack_array_size))
     #--------------------------------------------------------------------------------------------
 
     #the solved plain text we accumulate and return
     solved_plain_text = b""
 
     for block_number in range(number_of_blocks_to_decode):
+        sys.stdout.write("decrypting...")
+        sys.stdout.flush()
         for byte_number in range(block_size):
+            sys.stdout.write(".")
+            sys.stdout.flush()
+            if solved_plain_text[0:5] == b"AAAAA":
+                break
 
             #generate the next attack array
             ints = [ord("A") for i in range(base_attack_array_size + (block_number*block_size) + byte_number)]
             attack_array = bytes(ints)
-            print(attack_array)
-            print(len(attack_array))
 
-            brute_force_dict = {}
-            #the format of each element in this array is:
+            #calculate a list that has all potential plaintexts
+            # the format of each element in this array is:
             #  [byte_iterator | blocksize worth of most recent bz-1 solved_plain_text | padding if necessary]
 
             #build the just short array
             jsa_solved_plain_text = b""
             jsa_padding = b""
             if (len(solved_plain_text)) >= block_size:
-                jsa_solved_plain_text = solved_plain_text[:(block_size-1)-1]
+                jsa_solved_plain_text = solved_plain_text[:(block_size-1)]
             else:
                 jsa_solved_plain_text = solved_plain_text
                 padding_lenth = block_size - len(solved_plain_text) - 1
@@ -229,26 +220,27 @@ def crack_ecb(oracle_func, plaintext):
 
             #now generate the cryptotexts we want to match
             crypto_text_candidates = []
-            for i in range(150):
+            for i in range(50):
                 #if the byte is in the dict, create an entry in the dict of a one-element list
                 candidate_crypt = oracle_func(
                     attack_array, plaintext)
                 if len(candidate_crypt) >= analysis_block * block_size:
                     #only extract the analysis block from the candidate
+                    entire_candidate_crypt = candidate_crypt
                     candidate_crypt = candidate_crypt[(analysis_block - 1)*block_size:analysis_block*block_size]
                     if candidate_crypt not in crypto_text_candidates:
                         crypto_text_candidates.append(candidate_crypt)
 
-            print(just_short_array_bytes_dict)
-            print(crypto_text_candidates)
+            #print(just_short_array_bytes_dict)
+            #print(crypto_text_candidates)
 
             #now gen a bunch of ciphertexts, looking at the second block and comparing it to our crypto_text_candidates
             attack_count = 1
             solved_byte = None
 
             while True:
-                if attack_count > block_size*(2+block_number):
-                    print("force breaking out of byte decryption attack loop, and exiting")
+                if attack_count > block_size*3:
+                    print("error, force breaking out of byte decryption attack loop, and exiting")
                     exit(1)
                     break
                 elif solved_byte is not None:
@@ -259,31 +251,25 @@ def crack_ecb(oracle_func, plaintext):
                     test_case = just_short_array_bytes_dict[element]
                     #gen a bunch of ciphers...
                     ciphers = []
-                    for c in range(100):
+                    for c in range(50):
                         intz = \
                             [ord("A") for lol in range(attack_count)]
                         ciph = oracle_func(bytes(intz) + test_case, plaintext)
                         if ciph not in ciphers:
                             ciphers.append(ciph)
 
+                    #compare generated ciphers with the crypto candidates. The intersection will reveal the next byte.
                     for c in ciphers:
-                        #print(c[block_size:block_size*2])
-                        #print(crypto_text_candidates)
-                        if c[block_size + block_number:block_size*2 + block_number] in crypto_text_candidates:
-                            #print("found it")
-                            #print("mystery byte is " + str(test_case[0]))
+                        if c[block_size:block_size*2] in crypto_text_candidates:
                             solved_byte = test_case[0]
                             break
 
                 attack_count += 1
 
-                #exit(1)
-            #exit(1)
             solved_plain_text = bytes([solved_byte]) + solved_plain_text
-            print("solved plaintext so far: " + str(solved_plain_text))
+        print("\nsolved plaintext so far: " + str(solved_plain_text))
 
-
-    return solved_plain_text
+    return solved_plain_text.decode("ascii").lstrip("A")
 #***********************************************************************************************************************
 
 if __name__ == '__main__':
@@ -300,5 +286,7 @@ if __name__ == '__main__':
     unknown_string = base64.b64decode(b64_unknown_string)
     challenge_plaintext = bytes(unknown_string)
 
-    print(crack_ecb(ecb_oracle, challenge_plaintext))
+    solved = crack_ecb(ecb_oracle, challenge_plaintext)
+    print("----------------------")
+    print(solved)
 
