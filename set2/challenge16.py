@@ -107,7 +107,7 @@ def challenge15_oracle(user_input, key, iv):
     return encrypt_aes128_cbc(bytes(prefix + user_input + suffix, "ascii"), key, iv)
 #-----------------------------------------------------------------------------------------------------------------------
 
-#not going to account for the case
+#not going to account for the edge case where the random mess of the first tampered block closes out the key/value pair.
 def check_admin(test_string):
     if ";admin=true;" in test_string:
         return True
@@ -116,7 +116,7 @@ def check_admin(test_string):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-def tamper(cipher, target_block, blocksize):
+def tamper(cipher, target_block, blocksize, random_block):
 
     #for kids who don't count good
     target_block_index = target_block - 1
@@ -129,8 +129,12 @@ def tamper(cipher, target_block, blocksize):
 
     for i in range(len(want)):
         #make the change to the preceding block
-        cipher[blocksize*(target_block_index - 1) + (blocksize - len(want)) + i] ^= want[i]
-
+        #if it were just nulls, it would be
+        #cipher[blocksize*(target_block_index - 1) + (blocksize - len(want)) + i] ^= want[i]
+        #but since we are doing random plaintexts, it's:
+        cipher[blocksize*(target_block_index - 1) + (blocksize - len(want)) + i] = \
+            cipher[blocksize*(target_block_index - 1) + (blocksize - len(want)) + i] ^ \
+            random_block[(blocksize - len(want)) + i] ^ want[i]
     #convert cipher back to bytes
     return bytes(cipher)
 #-----------------------------------------------------------------------------------------------------------------------
@@ -166,17 +170,29 @@ if __name__ == '__main__':
         attack_array += "\x00"
 
     #using null bytes is the simplest case because then we just have to xor by what we want (a xor 0 = a)
-    #todo - do this with random bytes instead of null bytes for fun
+    #updated to use random bytes
     #add a pair of full blocks
+    random_block = b""
     for i in range(2*blocksize):
-        attack_array += "\x00"
-
+        #if all we were doing was null bytes, our entire loop body would be:
+        #attack_array += "\x00"
+        #but since we are doing random inputs, we just need to make sure the char ";" and "=" are not chosen
+        #because the sanitation routine quotes those chars out and don't want to do the math to account for that.
+        #also only doing up to 127 instead of 255 because sanitation routine is set to use ascii strings...
+        r = None
+        while True:
+            r = random.randint(0,127)
+            if r != 59 and r != 61:
+                break
+        attack_array += chr(r)
+        if i >= blocksize:
+            random_block += bytes([r])
 
     cipher = challenge15_oracle(attack_array, key, iv)
 
     print("untampered cipher is " + str(decrypt_aes128_cbc(cipher, key, iv)))
 
-    cipher = tamper(cipher, target_block, blocksize)
+    cipher = tamper(cipher, target_block, blocksize, random_block)
     print(cipher)
 
     plain = decrypt_aes128_cbc(cipher, key, iv)
