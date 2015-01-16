@@ -107,7 +107,7 @@ def challenge15_oracle(user_input, key, iv):
     return encrypt_aes128_cbc(bytes(prefix + user_input + suffix, "ascii"), key, iv)
 #-----------------------------------------------------------------------------------------------------------------------
 
-
+#not going to account for the case
 def check_admin(test_string):
     if ";admin=true;" in test_string:
         return True
@@ -116,19 +116,67 @@ def check_admin(test_string):
 #-----------------------------------------------------------------------------------------------------------------------
 
 
-#todo: this.
-def tamper(key, iv):
-    cipher = (challenge15_oracle("===hiii;;;;;ii", key, iv))
-    return cipher
+def tamper(cipher, target_block, blocksize):
 
+    #for kids who don't count good
+    target_block_index = target_block - 1
+
+    #what I want at the end of that target block:
+    want = b";admin=true"
+
+    #because bytes are immutable in python, we will convert cipher to a list of ints
+    cipher = list(cipher)
+
+    for i in range(len(want)):
+        #make the change to the preceding block
+        cipher[blocksize*(target_block_index - 1) + (blocksize - len(want)) + i] ^= want[i]
+
+    #convert cipher back to bytes
+    return bytes(cipher)
 #-----------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+
+    blocksize = 16
     key = generateRandom16bytes()
     iv = generateRandom16bytes()
 
-    cipher = tamper(key, iv)
+    prefix = "comment1=cooking%20MCs;userdata="
+    suffix = ";comment2=%20like%20a%20pound%20of%20bacon"
+
+    #construct a suitable attack plaintext in the form:
+    #[fill out the prefix's last block][a block worth of random bytes for flipping][a block worth of random bytes]
+    #e.g.
+    #prefixAAA|AAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAA
+    #can become
+    #prefixAAA|GARBELEDMESSSSSS|AAAAA;admin=true
+
+    #find out how many bytes we need to fill
+    prefix__block_remainder = (blocksize - (len(prefix) % blocksize)) % blocksize
+
+    #find out which block will be subject to tampering:
+    target_block = int((len(prefix) + prefix__block_remainder)/blocksize) + 2
+
+    #create the attack array
+    attack_array = ""
+
+    #add bytes to fill out the prefix's last block
+    for i in range(prefix__block_remainder):
+        attack_array += "\x00"
+
+    #using null bytes is the simplest case because then we just have to xor by what we want (a xor 0 = a)
+    #todo - do this with random bytes instead of null bytes for fun
+    #add a pair of full blocks
+    for i in range(2*blocksize):
+        attack_array += "\x00"
+
+
+    cipher = challenge15_oracle(attack_array, key, iv)
+
+    print("untampered cipher is " + str(decrypt_aes128_cbc(cipher, key, iv)))
+
+    cipher = tamper(cipher, target_block, blocksize)
     print(cipher)
 
     plain = decrypt_aes128_cbc(cipher, key, iv)
